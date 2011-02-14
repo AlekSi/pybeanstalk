@@ -8,5 +8,5 @@ class ConfigWrapper(object):
     def __getattr__(self, attr):
         return self.config.get(self.section, attr)
 
-def get_config(section_name, configfile="tests.cfg"):
+def get_config(section_name, configfile="tests/tests.cfg"):
     return ConfigWrapper(configfile, section_name)

@@ -293,7 +293,7 @@ def test_tube_operations():
     #nodes
     print conn.stats()
     assert conn.stats()['data']['current-jobs-ready'] == 2,\
-            "Was expecting %s, got %s" % (expecting,
+            "Was expecting %s, got %s" % (2,
                     newjob_.Server.stats()['data']['current-jobs-ready'])
 
     # because the protocol blocks when we try to reserve a job, theres not a
