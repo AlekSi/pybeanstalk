@@ -121,16 +121,6 @@ class Beanstalk(basic.LineReceiver):
         else:
             self._current.appendleft(pending)
 
-class BeanstalkClientFactory(protocol.ClientFactory):
-    def startedConnecting(self, connector):
-        log.msg('Started to connect.')
 
-    def buildProtocol(self, addr):
-        log.msg('Connected.')
-        return Beanstalk()
-
-    def clientConnectionLost(self, connector, reason):
-        log.msg('Connection lost. Reason: %r' % reason)
-
-    def clientConnectionFailed(self, connector, reason):
-        log.msg('Connection failed. Reason: %r' % reason)
+class BeanstalkClientFactory(protocol.ReconnectingClientFactory):
+    protocol = Beanstalk
