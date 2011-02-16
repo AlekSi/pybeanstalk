@@ -2,7 +2,7 @@
 
 VIRTUALENV?=virtualenv
 
-all: test_nose flakes pep8
+all: test_nose test_trial test_trial flakes pep8
 
 env:
 	rm -fr env
@@ -13,6 +13,9 @@ env:
 
 test_nose:
 	env/bin/nosetests -v tests
+
+test_trial:
+	env/bin/trial tests/twisted_client/test_twisted_client.py
 
 flakes:
 	env/bin/pyflakes beanstalk

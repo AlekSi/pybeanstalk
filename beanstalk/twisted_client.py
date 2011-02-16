@@ -64,7 +64,7 @@ class Beanstalk(basic.LineReceiver):
         self._current = deque()
 
     def connectionMade(self):
-        print "Connected!"
+        log.msg('Connected!')
         self.setLineMode()
 
     def __getattr__(self, attr):
@@ -123,14 +123,14 @@ class Beanstalk(basic.LineReceiver):
 
 class BeanstalkClientFactory(protocol.ClientFactory):
     def startedConnecting(self, connector):
-        print 'Started to connect.'
+        log.msg('Started to connect.')
 
     def buildProtocol(self, addr):
-        print 'Connected.'
+        log.msg('Connected.')
         return Beanstalk()
 
     def clientConnectionLost(self, connector, reason):
-        print 'Lost connection.  Reason:', reason
+        log.msg('Connection lost. Reason: %r' % reason)
 
     def clientConnectionFailed(self, connector, reason):
-        print 'Connection failed. Reason:', reason
+        log.msg('Connection failed. Reason: %r' % reason)
