@@ -1,5 +1,4 @@
 import sys
-print >>sys.stderr,sys.version
 sys.path.append('..')
 from nose import with_setup, tools
 from beanstalk import protohandler

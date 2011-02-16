@@ -18,31 +18,22 @@ import nose
 
 from beanstalk import serverconn
 from beanstalk import errors
+from spawner import spawner
 from config import get_config
 
 config = get_config("ServerConn")
 
 # created during setup
-server_pid = None
 conn = None
 
 
 def setup():
-    global server_pid, conn, config
-    server_pid = os.spawnl(os.P_NOWAIT,
-                            os.path.join(config.BPATH,config.BEANSTALKD),
-                            os.path.join(config.BPATH,config.BEANSTALKD),
-                            '-l', config.BEANSTALKD_HOST,
-                            '-p', config.BEANSTALKD_PORT
-                            )
-    print "server started at process", server_pid
-    time.sleep(0.1)
+    spawner.spawn(host=config.BEANSTALKD_HOST, port=config.BEANSTALKD_PORT, path=os.path.join(config.BPATH, config.BEANSTALKD))
+    global conn
     conn = serverconn.ServerConn(config.BEANSTALKD_HOST, int(config.BEANSTALKD_PORT))
 
 def teardown():
-    print "terminating beanstalkd at", server_pid
-    os.kill(server_pid, signal.SIGTERM)
-
+    spawner.terminate_all()
 
 # Test helpers:
 

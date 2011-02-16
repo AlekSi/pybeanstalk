@@ -12,7 +12,7 @@ env:
 	echo "\n\n>> Run 'source env/bin/activate'"
 
 test_nose:
-	env/bin/nosetests tests
+	env/bin/nosetests -v tests
 
 flakes:
 	env/bin/pyflakes beanstalk
