@@ -67,13 +67,7 @@ class Beanstalk(basic.LineReceiver):
         log.msg('Connected!')
         self.setLineMode()
 
-    def __getattr__(self, attr):
-        def caller(*args, **kw):
-            return self.__cmd(attr,
-                *getattr(protohandler, 'process_%s' % attr)(*args, **kw))
-        return caller
-
-    def __cmd(self, command, full_command, handler):
+    def _cmd(self, command, full_command, handler):
         # Note here: the protohandler already inserts the \r\n, so
         # it would be an error to do self.sendline()
         self.transport.write(full_command)
@@ -120,6 +114,17 @@ class Beanstalk(basic.LineReceiver):
             self.setLineMode(rem)
         else:
             self._current.appendleft(pending)
+
+for name in dir(protohandler):
+    if not name.startswith('process_'):
+        continue
+    cmd = name.partition('_')[2]
+
+    def caller(self, *args, **kw):
+        return self._cmd(cmd,
+            *getattr(protohandler, 'process_%s' % cmd)(*args, **kw))
+
+    setattr(Beanstalk, cmd, caller)
 
 
 class BeanstalkClientFactory(protocol.ReconnectingClientFactory):
