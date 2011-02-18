@@ -129,3 +129,7 @@ for name in dir(protohandler):
 
 class BeanstalkClientFactory(protocol.ReconnectingClientFactory):
     protocol = Beanstalk
+
+    def buildProtocol(self, addr):
+        self.resetDelay()
+        return self.protocol()
