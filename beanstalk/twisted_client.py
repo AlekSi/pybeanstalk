@@ -124,3 +124,7 @@ class Beanstalk(basic.LineReceiver):
 
 class BeanstalkClientFactory(protocol.ReconnectingClientFactory):
     protocol = Beanstalk
+
+    def buildProtocol(self, addr):
+        self.resetDelay()
+        return self.protocol()
