@@ -23,4 +23,4 @@ class BTestCase(unittest.TestCase):
         spawner.terminate_all()
 
     def test_omg(self):
-        return protocol.ClientCreator(reactor, Beanstalk).connectTCP(self.host, int(self.port)).addCallback(lambda proto: proto.use("tube"))
+        return protocol.ClientCreator(reactor, Beanstalk).connectTCP(self.host, int(self.port)).addCallback(lambda proto: proto.put("tube", 1))

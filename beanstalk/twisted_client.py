@@ -120,11 +120,13 @@ for name in dir(protohandler):
         continue
     cmd = name.partition('_')[2]
 
-    def caller(self, *args, **kw):
-        return self._cmd(cmd,
-            *getattr(protohandler, 'process_%s' % cmd)(*args, **kw))
+    def wrapper(cmd):
+        def caller(self, *args, **kw):
+            return self._cmd(cmd,
+                *getattr(protohandler, 'process_%s' % cmd)(*args, **kw))
+        return caller
 
-    setattr(Beanstalk, cmd, caller)
+    setattr(Beanstalk, cmd, wrapper(cmd))
 
 
 class BeanstalkClientFactory(protocol.ReconnectingClientFactory):
