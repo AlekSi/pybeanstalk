@@ -58,13 +58,12 @@ class Command(object):
         """
         self._deferred.errback(error)
 
-class Beanstalk(basic.LineReceiver):
 
+class Beanstalk(basic.LineReceiver):
     def __init__(self):
         self._current = deque()
 
     def connectionMade(self):
-        log.msg('Connected!')
         self.setLineMode()
 
     def _cmd(self, command, full_command, handler):
@@ -134,4 +133,4 @@ class BeanstalkClientFactory(protocol.ReconnectingClientFactory):
 
     def buildProtocol(self, addr):
         self.resetDelay()
-        return self.protocol()
+        return protocol.ReconnectingClientFactory.buildProtocol(self, addr)

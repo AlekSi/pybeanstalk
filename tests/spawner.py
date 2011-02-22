@@ -13,7 +13,7 @@ class BeanstalkdSpawner(object):
         Spawns new instance.
         """
 
-        p = Popen([path, "-l", host, "-p", port])
+        p = Popen([path, "-l", host, "-p", str(port)])
         self.instances.append(p)
         time.sleep(0.1)
 
