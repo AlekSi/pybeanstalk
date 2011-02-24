@@ -9,8 +9,11 @@ from twisted.internet import reactor, protocol, defer, task
 
 import beanstalk
 
+from twisted.python import log
+log.startLogging(sys.stdout)
+
 def executor(bs, jobdata):
-    print "Running job %s" % `jobdata`
+    log.msg("Running job %s" % `jobdata`)
     bs.touch(jobdata['jid'])
     bs.delete(jobdata['jid'])
 
@@ -19,20 +22,20 @@ def error_handler(e):
 
 def executionGenerator(bs):
     while True:
-        print "Waiting for a job..."
-        yield bs.reserve().addCallback(lambda v: executor(bs, v)).addErrback(
-            error_handler)
+        log.msg("Waiting for a job...")
+        yield bs.reserve().addCallback(lambda v: executor(bs, v)).addErrback(error_handler)
 
 def worker(bs):
+    global client
+    client.deferred.addCallback(worker)
+
     bs.watch("myqueue")
     bs.ignore("default")
 
     coop = task.Cooperator()
     coop.coiterate(executionGenerator(bs))
 
-d=protocol.ClientCreator(reactor,
-    beanstalk.twisted_client.Beanstalk).connectTCP(sys.argv[1], 11300)
+client = beanstalk.twisted_client.BeanstalkClient(noisy=True)
+d = client.connectTCP(sys.argv[1], 11300)
 d.addCallback(worker)
-
 reactor.run()
-

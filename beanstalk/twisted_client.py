@@ -150,12 +150,12 @@ class BeanstalkClientFactory(protocol.ReconnectingClientFactory):
 
     def clientConnectionFailed(self, connector, reason):
         if self.noisy:
-            log.msg("BeanstalkClientFactory - clientConnectionFailed %r %r" % (connector, reason))
+            log.msg("BeanstalkClientFactory - clientConnectionFailed: %s" % reason)
         return protocol.ReconnectingClientFactory.clientConnectionFailed(self, connector, reason)
 
     def clientConnectionLost(self, connector, reason):
         if self.noisy:
-            log.msg("BeanstalkClientFactory - clientConnectionLost %r %r" % (connector, reason))
+            log.msg("BeanstalkClientFactory - clientConnectionLost: %s" % reason)
         return protocol.ReconnectingClientFactory.clientConnectionLost(self, connector, reason)
 
     def _fire(self, instance):
@@ -171,10 +171,13 @@ class BeanstalkClient(object):
     deferred = None
     protocol = None
 
+    def __init__(self, noisy=False):
+        self.noisy = noisy
+
     def connectTCP(self, host, port):
         def _store(instance):
             if self.noisy:
-                log.msg("BeanstalkClient - _store %r" % instance)
+                log.msg("BeanstalkClient - _store")
             self.deferred = defer.Deferred()
             self.deferred.addCallback(_store)
             self.protocol = instance
