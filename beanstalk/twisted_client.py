@@ -1,5 +1,5 @@
 from twisted.protocols import basic
-from twisted.internet import defer, protocol
+from twisted.internet import reactor, defer, protocol
 from twisted.python import log
 import protohandler
 
@@ -129,8 +129,58 @@ for name in dir(protohandler):
 
 
 class BeanstalkClientFactory(protocol.ReconnectingClientFactory):
+    """Handles disconnects."""
+
+    noisy = False
     protocol = Beanstalk
 
+    clock    = None
+    instance = None
+    deferred = None
+    pending  = None
+
+    def __init__(self, _clock=reactor, _deferred=defer.Deferred()):
+        self.clock    = _clock
+        self.deferred = _deferred
+
     def buildProtocol(self, addr):
+        if self.noisy:
+            print "BeanstalkClientFactory - buildProtocol %r" % addr
         self.resetDelay()
-        return protocol.ReconnectingClientFactory.buildProtocol(self, addr)
+        self.instance = protocol.ReconnectingClientFactory.buildProtocol(self, addr)
+        self.pending = self.clock.callLater(0, self._fire, self.deferred.callback, self.instance)
+        self.deferred = None
+        return self.instance
+
+    def clientConnectionFailed(self, connector, reason):
+        if self.noisy:
+            print "BeanstalkClientFactory - clientConnectionFailed %r %r" % (connector, reason)
+        self.instance = None
+        self.pending = self.clock.callLater(0, self._fire, self.deferred.errback, reason)
+        self.deferred = None
+
+    def _fire(self, callable, value):
+        if self.noisy:
+            print "_fire"
+        self.pending = None
+        callable(value)
+
+
+class BeanstalkClient(object):
+    clock = reactor
+    noisy = False
+    protocol = None
+
+    def connectTCP(self, host, port):
+        def setProtocol(proto):
+            self.protocol = proto
+            return proto
+
+        if self.noisy:
+            print "connectTCP"
+        d = defer.Deferred()
+        f = BeanstalkClientFactory(self.clock, d)
+        d.addCallback(setProtocol)
+        f.noisy = self.noisy
+        connector = reactor.connectTCP(host, port, f)
+        return d
