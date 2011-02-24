@@ -154,10 +154,12 @@ class BeanstalkClientFactory(protocol.ReconnectingClientFactory):
     def clientConnectionFailed(self, connector, reason):
         if self.noisy:
             log.msg("BeanstalkClientFactory - clientConnectionFailed %r %r" % (connector, reason))
-        self.instance = None
-        if self.deferred:
-            self.pending = reactor.callLater(0, self._fire, self.deferred.errback, reason)
-            self.deferred = None
+        return protocol.ReconnectingClientFactory.clientConnectionFailed(self, connector, reason)
+
+    def clientConnectionLost(self, connector, reason):
+        if self.noisy:
+            log.msg("BeanstalkClientFactory - clientConnectionLost %r %r" % (connector, reason))
+        return protocol.ReconnectingClientFactory.clientConnectionLost(self, connector, reason)
 
     def _fire(self, callable, value):
         if self.noisy:
@@ -176,8 +178,8 @@ class BeanstalkClient(object):
             return proto
 
         d = defer.Deferred()
-        f = BeanstalkClientFactory(d)
         d.addCallback(setProtocol)
+        f = BeanstalkClientFactory(d)
         f.noisy = self.noisy
         connector = reactor.connectTCP(host, port, f)
         return d

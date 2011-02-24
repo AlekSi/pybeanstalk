@@ -57,7 +57,8 @@ class BeanstalkClientTestCase(unittest.TestCase):
 
     def tearDown(self):
         spawner.terminate_all()
-        self.client.protocol.factory.stopTrying()
+        if self.client.protocol:
+            self.client.protocol.factory.stopTrying()
 
     def test_simplest(self):
         def check(proto):
@@ -67,12 +68,12 @@ class BeanstalkClientTestCase(unittest.TestCase):
 
         return self.client.connectTCP(self.host, self.port).addCallback(check)
 
-    # def test_reconnect(self):
-    #     def check(proto):
-    #         self.failUnless(proto)
-    #         self.failUnlessEqual(self.client.protocol, proto)
-    #         return proto.put("tube", 1).addCallback(lambda res: self.failUnlessEqual('ok', res['state']))
-    # 
-    #     spawner.terminate_all()
-    #     reactor.callLater(1, _setUp, self)
-    #     return BeanstalkClient.connectTCP(self.host, self.port).addCallback(check)
+    def test_retry_connect(self):
+        def check(proto):
+            self.failUnless(proto)
+            self.failUnlessEqual(self.client.protocol, proto)
+            return proto.put("tube", 1).addCallback(lambda res: self.failUnlessEqual('ok', res['state']))
+
+        spawner.terminate_all()
+        reactor.callLater(1, _setUp, self)
+        return self.client.connectTCP(self.host, self.port).addCallback(check)
