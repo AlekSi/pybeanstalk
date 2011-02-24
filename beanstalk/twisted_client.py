@@ -134,40 +134,39 @@ class BeanstalkClientFactory(protocol.ReconnectingClientFactory):
     noisy = False
     protocol = Beanstalk
 
-    clock    = None
     instance = None
     deferred = None
     pending  = None
 
-    def __init__(self, _clock=reactor, _deferred=defer.Deferred()):
-        self.clock    = _clock
+    def __init__(self, _deferred=None):
         self.deferred = _deferred
 
     def buildProtocol(self, addr):
         if self.noisy:
-            print "BeanstalkClientFactory - buildProtocol %r" % addr
+            log.msg("BeanstalkClientFactory - buildProtocol %r" % addr)
         self.resetDelay()
         self.instance = protocol.ReconnectingClientFactory.buildProtocol(self, addr)
-        self.pending = self.clock.callLater(0, self._fire, self.deferred.callback, self.instance)
-        self.deferred = None
+        if self.deferred:
+            self.pending = reactor.callLater(0, self._fire, self.deferred.callback, self.instance)
+            self.deferred = None
         return self.instance
 
     def clientConnectionFailed(self, connector, reason):
         if self.noisy:
-            print "BeanstalkClientFactory - clientConnectionFailed %r %r" % (connector, reason)
+            log.msg("BeanstalkClientFactory - clientConnectionFailed %r %r" % (connector, reason))
         self.instance = None
-        self.pending = self.clock.callLater(0, self._fire, self.deferred.errback, reason)
-        self.deferred = None
+        if self.deferred:
+            self.pending = reactor.callLater(0, self._fire, self.deferred.errback, reason)
+            self.deferred = None
 
     def _fire(self, callable, value):
         if self.noisy:
-            print "_fire"
+            log.msg("BeanstalkClientFactory - _fire")
         self.pending = None
-        callable(value)
+        return callable(value)
 
 
 class BeanstalkClient(object):
-    clock = reactor
     noisy = False
     protocol = None
 
@@ -176,10 +175,8 @@ class BeanstalkClient(object):
             self.protocol = proto
             return proto
 
-        if self.noisy:
-            print "connectTCP"
         d = defer.Deferred()
-        f = BeanstalkClientFactory(self.clock, d)
+        f = BeanstalkClientFactory(d)
         d.addCallback(setProtocol)
         f.noisy = self.noisy
         connector = reactor.connectTCP(host, port, f)

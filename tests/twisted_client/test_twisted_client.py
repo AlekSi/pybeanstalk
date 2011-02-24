@@ -43,7 +43,7 @@ class BeanstalkClientFactoryTestCase(unittest.TestCase):
     def tearDown(self):
         spawner.terminate_all()
 
-    def test_assing_protocol(self):
+    def test_assign_protocol(self):
         f = BeanstalkClientFactory()
         p = f.buildProtocol("abc")
         self.failUnlessEqual(f, p.factory)
@@ -54,10 +54,10 @@ class BeanstalkClientTestCase(unittest.TestCase):
         _setUp(self)
         self.client = BeanstalkClient()
         self.client.noisy = True
-        self.client.clock = Clock()
 
     def tearDown(self):
         spawner.terminate_all()
+        self.client.protocol.factory.stopTrying()
 
     def test_simplest(self):
         def check(proto):
@@ -65,9 +65,7 @@ class BeanstalkClientTestCase(unittest.TestCase):
             self.failUnlessEqual(self.client.protocol, proto)
             return proto.put("tube", 1).addCallback(lambda res: self.failUnlessEqual('ok', res['state']))
 
-        d = self.client.connectTCP(self.host, self.port).addCallback(check)
-        self.client.clock.advance(1)
-        return d
+        return self.client.connectTCP(self.host, self.port).addCallback(check)
 
     # def test_reconnect(self):
     #     def check(proto):
