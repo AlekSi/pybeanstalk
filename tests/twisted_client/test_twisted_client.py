@@ -77,3 +77,17 @@ class BeanstalkClientTestCase(unittest.TestCase):
         spawner.terminate_all()
         reactor.callLater(1, _setUp, self)
         return self.client.connectTCP(self.host, self.port).addCallback(check)
+
+    def test_reconnect(self):
+        self.checked = 0
+
+        def check(proto):
+            self.checked += 1
+            self.failUnless(proto)
+            self.failUnlessEqual(self.client.protocol, proto)
+            return proto.put("tube", 1).addCallback(lambda res: self.failUnlessEqual('ok', res['state']))
+
+        return self.client.connectTCP(self.host, self.port).addCallback(check) \
+                   .addCallback(lambda _: spawner.terminate_all()).addCallback(lambda _: reactor.callLater(1, _setUp, self)) \
+                   .addCallback(lambda _: self.client.deferred).addCallback(check) \
+                   .addCallback(lambda _: self.failUnlessEqual(2, self.checked))
