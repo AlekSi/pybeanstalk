@@ -1,6 +1,6 @@
 from twisted.protocols import basic
 from twisted.internet import reactor, defer, protocol
-from twisted.python import log
+from twisted.python import log, failure
 import protohandler
 
 # Stolen from memcached protocol
@@ -135,7 +135,6 @@ class BeanstalkClientFactory(protocol.ReconnectingClientFactory):
     protocol = Beanstalk
 
     client = None
-    pending  = None
 
     def __init__(self, _client=None):
         self.client = _client
@@ -145,25 +144,26 @@ class BeanstalkClientFactory(protocol.ReconnectingClientFactory):
             log.msg("BeanstalkClientFactory - buildProtocol %r" % addr)
         self.resetDelay()
         instance = protocol.ReconnectingClientFactory.buildProtocol(self, addr)
-        self.pending = reactor.callLater(0, self._fire, instance)
+        self._fire_later('callback', instance)
         return instance
 
     def clientConnectionFailed(self, connector, reason):
         if self.noisy:
             log.msg("BeanstalkClientFactory - clientConnectionFailed: %s" % reason)
+        self._fire_later('callback', None)
         return protocol.ReconnectingClientFactory.clientConnectionFailed(self, connector, reason)
 
     def clientConnectionLost(self, connector, reason):
         if self.noisy:
             log.msg("BeanstalkClientFactory - clientConnectionLost: %s" % reason)
+        self._fire_later('callback', None)
         return protocol.ReconnectingClientFactory.clientConnectionLost(self, connector, reason)
 
-    def _fire(self, instance):
-        if self.noisy:
-            log.msg("BeanstalkClientFactory - _fire")
-        self.pending = None
+    def _fire_later(self, method, instance):
         if self.client:
-            self.client.deferred.callback(instance)
+            if self.noisy:
+                log.msg("BeanstalkClientFactory - _fire_later %s %r" % (method, instance))
+            reactor.callLater(0, self.client._fire, method, instance)
 
 
 class BeanstalkClient(object):
@@ -173,18 +173,25 @@ class BeanstalkClient(object):
 
     def __init__(self, noisy=False):
         self.noisy = noisy
+        self._fire('', None)
+
+    def _fire(self, method, res):
+        if self.noisy:
+            log.msg("BeanstalkClient - _fire %s %r" % (method, res))
+        self.protocol = res
+        m = getattr(self.deferred, method, None)
+        self.deferred = defer.Deferred()
+        if m:
+            return m(res)
 
     def connectTCP(self, host, port):
-        def _store(instance):
-            if self.noisy:
-                log.msg("BeanstalkClient - _store")
-            self.deferred = defer.Deferred()
-            self.deferred.addCallback(_store)
-            self.protocol = instance
-            return instance
-
-        _store(None)
         f = BeanstalkClientFactory(self)
         f.noisy = self.noisy
-        connector = reactor.connectTCP(host, port, f)
+        reactor.connectTCP(host, port, f)
+        return self.deferred
+
+    def disconnect(self):
+        if self.protocol:
+            self.protocol.factory.stopTrying()
+            self.protocol.transport.loseConnection()
         return self.deferred

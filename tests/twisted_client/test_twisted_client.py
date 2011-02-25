@@ -52,42 +52,118 @@ class BeanstalkClientFactoryTestCase(unittest.TestCase):
 class BeanstalkClientTestCase(unittest.TestCase):
     def setUp(self):
         _setUp(self)
-        self.client = BeanstalkClient()
-        self.client.noisy = True
+        self.client = BeanstalkClient(noisy=True)
 
     def tearDown(self):
+        self.client.disconnect()
         spawner.terminate_all()
-        if self.client.protocol:
-            self.client.protocol.factory.stopTrying()
 
-    def test_simplest(self):
-        def check(proto):
+    def test_connect_and_disconnect(self):
+        self.connected_count = 0
+        self.disconnected_count = 0
+
+        def check_connected(proto):
+            self.connected_count += 1
+            self.client.deferred.addCallback(check_disconnected)
+
             self.failUnless(proto)
             self.failUnlessEqual(self.client.protocol, proto)
             return proto.put("tube", 1).addCallback(lambda res: self.failUnlessEqual('ok', res['state']))
 
-        return self.client.connectTCP(self.host, self.port).addCallback(check)
+        def check_disconnected(proto):
+            self.disconnected_count += 1
+            self.client.deferred.addCallback(lambda _: self.fail(_))
+
+            self.failIf(proto)
+            self.failUnlessEqual(self.client.protocol, proto)
+
+        def check_count(_):
+            self.failUnlessEqual(1, self.connected_count)
+            self.failUnlessEqual(1, self.disconnected_count)
+
+        return self.client.connectTCP(self.host, self.port).addCallback(check_connected) \
+                   .addCallback(lambda _: self.client.disconnect()) \
+                   .addCallback(check_count)
 
     def test_retry_connect(self):
-        def check(proto):
+        self.connected_count = 0
+        self.disconnected_count = 0
+
+        def check_connected(proto):
+            self.connected_count += 1
+            self.client.deferred.addCallback(check_disconnected)
+
             self.failUnless(proto)
             self.failUnlessEqual(self.client.protocol, proto)
             return proto.put("tube", 1).addCallback(lambda res: self.failUnlessEqual('ok', res['state']))
+
+        def check_disconnected(proto):
+            self.disconnected_count += 1
+            self.client.deferred.addCallback(check_connected)
+
+            self.failIf(proto)
+            self.failUnlessEqual(self.client.protocol, proto)
+
+        def check_count(_):
+            self.failUnlessEqual(1, self.connected_count)
+            self.failUnlessEqual(1, self.disconnected_count)
 
         spawner.terminate_all()
-        reactor.callLater(1, _setUp, self)
-        return self.client.connectTCP(self.host, self.port).addCallback(check)
+        return self.client.connectTCP(self.host, self.port).addCallback(check_disconnected) \
+                   .addCallback(lambda _: _setUp(self)).addCallback(lambda _: self.client.deferred) \
+                   .addCallback(check_count)
 
     def test_reconnect(self):
-        self.checked = 0
+        self.connected_count = 0
+        self.disconnected_count = 0
 
-        def check(proto):
-            self.checked += 1
+        def check_connected(proto):
+            self.connected_count += 1
+            self.client.deferred.addCallback(check_disconnected)
+
             self.failUnless(proto)
             self.failUnlessEqual(self.client.protocol, proto)
             return proto.put("tube", 1).addCallback(lambda res: self.failUnlessEqual('ok', res['state']))
 
-        return self.client.connectTCP(self.host, self.port).addCallback(check) \
-                   .addCallback(lambda _: spawner.terminate_all()).addCallback(lambda _: reactor.callLater(1, _setUp, self)) \
-                   .addCallback(lambda _: self.client.deferred).addCallback(check) \
-                   .addCallback(lambda _: self.failUnlessEqual(2, self.checked))
+        def check_disconnected(proto):
+            self.disconnected_count += 1
+            self.client.deferred.addCallback(check_connected)
+
+            self.failIf(proto)
+            self.failUnlessEqual(self.client.protocol, proto)
+
+        def check_count(_):
+            self.failUnlessEqual(2, self.connected_count)
+            self.failUnlessEqual(1, self.disconnected_count)
+
+        return self.client.connectTCP(self.host, self.port).addCallback(check_connected) \
+                   .addCallback(lambda _: spawner.terminate_all()).addCallback(lambda _: self.client.deferred) \
+                   .addCallback(lambda _: _setUp(self)).addCallback(lambda _: self.client.deferred) \
+                   .addCallback(check_count)
+
+    # def test_connect_when_connected(self):
+    #    self.connected_count = 0
+    #    self.disconnected_count = 0
+    #
+    #    def check_connected(proto):
+    #        self.connected_count += 1
+    #        self.client.deferred.addCallback(check_disconnected)
+    #
+    #        self.failUnless(proto)
+    #        self.failUnlessEqual(self.client.protocol, proto)
+    #        return proto.put("tube", 1).addCallback(lambda res: self.failUnlessEqual('ok', res['state']))
+    #
+    #    def check_disconnected(proto):
+    #        self.disconnected_count += 1
+    #        self.client.deferred.addCallback(check_connected)
+    #
+    #        self.failIf(proto)
+    #        self.failUnlessEqual(self.client.protocol, proto)
+    #
+    #    def check_count(_):
+    #        self.failUnlessEqual(2, self.connected_count)
+    #        self.failUnlessEqual(0, self.disconnected_count)
+    #
+    #    return self.client.connectTCP(self.host, self.port).addCallback(check_connected) \
+    #               .addCallback(lambda _: self.client.connectTCP(self.host, self.port)).addCallback(lambda _: self.client.deferred) \
+    #               .addCallback(check_count)
