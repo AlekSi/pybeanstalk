@@ -62,20 +62,18 @@ class BeanstalkClientTestCase(unittest.TestCase):
         self.connected_count = 0
         self.disconnected_count = 0
 
-        def check_connected((client, proto)):
+        def check_connected(proto):
             self.connected_count += 1
             self.client.deferred.addCallback(check_disconnected)
 
-            self.failUnlessEqual(self.client, client)
             self.failUnless(proto)
             self.failUnlessEqual(self.client.protocol, proto)
             return proto.put("tube", 1).addCallback(lambda res: self.failUnlessEqual('ok', res['state']))
 
-        def check_disconnected((client, proto)):
+        def check_disconnected(proto):
             self.disconnected_count += 1
             self.client.deferred.addCallback(lambda _: self.fail(_))
 
-            self.failUnlessEqual(self.client, client)
             self.failIf(proto)
             self.failUnlessEqual(self.client.protocol, proto)
 
@@ -91,20 +89,18 @@ class BeanstalkClientTestCase(unittest.TestCase):
         self.connected_count = 0
         self.disconnected_count = 0
 
-        def check_connected((client, proto)):
+        def check_connected(proto):
             self.connected_count += 1
             self.client.deferred.addCallback(check_disconnected)
 
-            self.failUnlessEqual(self.client, client)
             self.failUnless(proto)
             self.failUnlessEqual(self.client.protocol, proto)
             return proto.put("tube", 1).addCallback(lambda res: self.failUnlessEqual('ok', res['state']))
 
-        def check_disconnected((client, proto)):
+        def check_disconnected(proto):
             self.disconnected_count += 1
             self.client.deferred.addCallback(check_connected)
 
-            self.failUnlessEqual(self.client, client)
             self.failIf(proto)
             self.failUnlessEqual(self.client.protocol, proto)
 
@@ -121,20 +117,18 @@ class BeanstalkClientTestCase(unittest.TestCase):
         self.connected_count = 0
         self.disconnected_count = 0
 
-        def check_connected((client, proto)):
+        def check_connected(proto):
             self.connected_count += 1
             self.client.deferred.addCallback(check_disconnected)
 
-            self.failUnlessEqual(self.client, client)
             self.failUnless(proto)
             self.failUnlessEqual(self.client.protocol, proto)
             return proto.put("tube", 1).addCallback(lambda res: self.failUnlessEqual('ok', res['state']))
 
-        def check_disconnected((client, proto)):
+        def check_disconnected(proto):
             self.disconnected_count += 1
             self.client.deferred.addCallback(check_connected)
 
-            self.failUnlessEqual(self.client, client)
             self.failIf(proto)
             self.failUnlessEqual(self.client.protocol, proto)
 

@@ -129,9 +129,7 @@ for name in dir(protohandler):
 
 
 class BeanstalkClientFactory(protocol.ReconnectingClientFactory):
-    """
-    Handles disconnects.
-    """
+    """Handles disconnects."""
 
     noisy = False
     protocol = Beanstalk
@@ -145,9 +143,9 @@ class BeanstalkClientFactory(protocol.ReconnectingClientFactory):
         if self.noisy:
             log.msg("BeanstalkClientFactory - buildProtocol %r" % addr)
         self.resetDelay()
-        proto = protocol.ReconnectingClientFactory.buildProtocol(self, addr)
-        self._fire_later('callback', proto)
-        return proto
+        instance = protocol.ReconnectingClientFactory.buildProtocol(self, addr)
+        self._fire_later('callback', instance)
+        return instance
 
     def clientConnectionFailed(self, connector, reason):
         if self.noisy:
@@ -161,37 +159,30 @@ class BeanstalkClientFactory(protocol.ReconnectingClientFactory):
         self._fire_later('callback', None)
         return protocol.ReconnectingClientFactory.clientConnectionLost(self, connector, reason)
 
-    def _fire_later(self, method, proto):
+    def _fire_later(self, method, instance):
         if self.client:
             if self.noisy:
-                log.msg("BeanstalkClientFactory - _fire_later %s %r" % (method, proto))
-            reactor.callLater(0, self.client._fire, method, (self.client, proto))
+                log.msg("BeanstalkClientFactory - _fire_later %s %r" % (method, instance))
+            reactor.callLater(0, self.client._fire, method, instance)
 
 
 class BeanstalkClient(object):
-    """
-    @ivar deferred: callbacks (client, proto), where client is this L{BeanstalkClient} instance and
-                    proto is L{Beanstalk} on connect and C{None} on disconnect.
-    @type deferred: L{Deferred}
-    """
-
     noisy = False
     deferred = None
     protocol = None
 
     def __init__(self, noisy=False):
         self.noisy = noisy
-        self._fire('', (self, None))
+        self._fire('', None)
 
-    def _fire(self, method, (client, proto)):
+    def _fire(self, method, res):
         if self.noisy:
-            log.msg("BeanstalkClient - _fire %s %r" % (method, (client, proto)))
-        assert self == client
-        self.protocol = proto
+            log.msg("BeanstalkClient - _fire %s %r" % (method, res))
+        self.protocol = res
         m = getattr(self.deferred, method, None)
         self.deferred = defer.Deferred()
         if m:
-            return m((client, proto))
+            return m(res)
 
     def connectTCP(self, host, port):
         f = BeanstalkClientFactory(self)
