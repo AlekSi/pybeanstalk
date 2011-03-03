@@ -2,7 +2,7 @@
 
 VIRTUALENV?=virtualenv
 
-all: test_nose test_trial test_trial flakes pep8
+all: test_nose test_trial flakes pep8
 
 env:
 	rm -fr env
