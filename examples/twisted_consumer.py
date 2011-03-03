@@ -25,9 +25,12 @@ def executionGenerator(bs):
         log.msg("Waiting for a job...")
         yield bs.reserve().addCallback(lambda v: executor(bs, v)).addErrback(error_handler)
 
-def worker(bs):
-    global client
+def worker(client):
     client.deferred.addCallback(worker)
+
+    bs = client.protocol
+    if not bs:
+        return
 
     bs.watch("myqueue")
     bs.ignore("default")

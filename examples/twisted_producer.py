@@ -12,7 +12,8 @@ import beanstalk
 from twisted.python import log
 log.startLogging(sys.stdout)
 
-def worker(bs):
+def worker(client):
+    bs = client.protocol
     bs.use("myqueue")
     bs.put('Look!  A job!', 8192, 0, 300) \
       .addCallback(lambda x: sys.stdout.write("Queued job: %s\n" % `x`)) \

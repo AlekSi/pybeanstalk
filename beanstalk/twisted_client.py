@@ -129,7 +129,9 @@ for name in dir(protohandler):
 
 
 class BeanstalkClientFactory(protocol.ReconnectingClientFactory):
-    """Handles disconnects."""
+    """
+    Handles disconnects.
+    """
 
     noisy = False
     protocol = Beanstalk
@@ -167,6 +169,12 @@ class BeanstalkClientFactory(protocol.ReconnectingClientFactory):
 
 
 class BeanstalkClient(object):
+    """
+    @ivar deferred: callbacks this L{BeanstalkClient} instance with protocol set to
+                    L{Beanstalk} instance on connect and C{None} on disconnect.
+    @type deferred: L{Deferred}
+    """
+
     noisy = False
     deferred = None
     protocol = None
@@ -175,14 +183,14 @@ class BeanstalkClient(object):
         self.noisy = noisy
         self._fire('', None)
 
-    def _fire(self, method, res):
+    def _fire(self, method, protocol):
         if self.noisy:
-            log.msg("BeanstalkClient - _fire %s %r" % (method, res))
-        self.protocol = res
+            log.msg("BeanstalkClient - _fire %s %r" % (method, protocol))
+        self.protocol = protocol
         m = getattr(self.deferred, method, None)
         self.deferred = defer.Deferred()
         if m:
-            return m(res)
+            return m(self)
 
     def connectTCP(self, host, port):
         f = BeanstalkClientFactory(self)
