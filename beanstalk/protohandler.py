@@ -215,11 +215,11 @@ def interaction(*responses):
         return newfunc
     return deco
 
-_namematch = re.compile(r'^[a-zA-Z0-9+\(\);.$][a-zA-Z0-9+\(\);.$-]{0,199}$')
+_namematch = re.compile(r'^[a-zA-Z0-9+\(\);.$][a-zA-Z0-9+\(\);.$_-]{0,199}$')
 def check_name(name):
     '''used to check the validity of a tube name'''
     if not _namematch.match(name):
-        raise errors.BadFormat('Illegal name')
+        raise errors.BadFormat('Illegal tube name %r' % name)
 
 @interaction(OK('INSERTED',['jid']), Buried('BURIED', ['jid']))
 def process_put(data, pri=1, delay=0, ttr=60):
