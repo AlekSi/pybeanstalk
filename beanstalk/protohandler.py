@@ -162,7 +162,7 @@ class Handler(object):
             errstr = "Response was: %s %s" % (word, ' '.join(response))
         elif len(response) != len(resp.args):
             errstr = "Response %s had wrong # args, got %s (expected %s)"
-            errstr %= (word, response, args)
+            errstr %= (word, response, resp.args)
         else: # all good
             errstr = ''
 
