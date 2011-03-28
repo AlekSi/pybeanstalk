@@ -28,7 +28,7 @@ conn = None
 
 
 def setup():
-    spawner.spawn(host=config.BEANSTALKD_HOST, port=config.BEANSTALKD_PORT, path=os.path.join(config.BPATH, config.BEANSTALKD))
+    spawner.spawn(host=config.BEANSTALKD_HOST, port=config.BEANSTALKD_PORT, path=config.BEANSTALKD)
     global conn
     conn = serverconn.ServerConn(config.BEANSTALKD_HOST, int(config.BEANSTALKD_PORT))
 

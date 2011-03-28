@@ -42,7 +42,7 @@ def setup():
     P = int(config.BEANSTALKD_PORT_START)
     J = getattr(job, config.BEANSTALKD_JOB_CLASS, None)
 
-    binloc = os.path.join(config.BPATH, config.BEANSTALKD)
+    binloc = config.BEANSTALKD
     conn = multiserverconn.ServerPool([])
 
     for ip, port in itertools.izip_longest(H, xrange(P, P+C), fillvalue=H[0]):

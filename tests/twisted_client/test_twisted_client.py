@@ -17,8 +17,7 @@ def _setUp(self):
     config = get_config("ServerConn", "../tests/tests.cfg")
     self.host = config.BEANSTALKD_HOST
     self.port = int(config.BEANSTALKD_PORT)
-    self.path = os.path.join(config.BPATH, config.BEANSTALKD)
-    spawner.spawn(host=self.host, port=self.port, path=self.path)
+    spawner.spawn(host=self.host, port=self.port, path=config.BEANSTALKD)
 
 
 class BeanstalkTestCase(unittest.TestCase):
