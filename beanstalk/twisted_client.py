@@ -130,75 +130,96 @@ for name in dir(protohandler):
 
 class BeanstalkClientFactory(protocol.ReconnectingClientFactory):
     """
-    Handles disconnects.
+    Retries on disconnect.
+    Intended to be used with L{BeanstalkClient}, but also may be used as normal Twisted L{ReconnectingClientFactory}.
     """
 
     noisy = False
     protocol = Beanstalk
 
-    client = None
-
     def __init__(self, _client=None):
-        self.client = _client
+        self._client = _client
 
     def buildProtocol(self, addr):
         if self.noisy:
             log.msg("BeanstalkClientFactory - buildProtocol %r" % addr)
         self.resetDelay()
-        instance = protocol.ReconnectingClientFactory.buildProtocol(self, addr)
-        self._fire_later('callback', instance)
-        return instance
+        protocol_instance = protocol.ReconnectingClientFactory.buildProtocol(self, addr)
+        self._fire_later(protocol_instance)
+        return protocol_instance
 
     def clientConnectionFailed(self, connector, reason):
         if self.noisy:
             log.msg("BeanstalkClientFactory - clientConnectionFailed: %s" % reason)
-        self._fire_later('callback', None)
+        self._fire_later(reason)
         return protocol.ReconnectingClientFactory.clientConnectionFailed(self, connector, reason)
 
     def clientConnectionLost(self, connector, reason):
         if self.noisy:
             log.msg("BeanstalkClientFactory - clientConnectionLost: %s" % reason)
-        self._fire_later('callback', None)
+        self._fire_later(reason)
         return protocol.ReconnectingClientFactory.clientConnectionLost(self, connector, reason)
 
-    def _fire_later(self, method, instance):
-        if self.client:
+    def _fire_later(self, arg):
+        if self._client:
             if self.noisy:
-                log.msg("BeanstalkClientFactory - _fire_later %s %r" % (method, instance))
-            reactor.callLater(0, self.client._fire, method, instance)
+                log.msg("BeanstalkClientFactory - _fire_later %r" % (arg))
+            reactor.callLater(0, self._client._fire, arg)
 
 
 class BeanstalkClient(object):
     """
-    @ivar deferred: callbacks this L{BeanstalkClient} instance with protocol set to
-                    L{Beanstalk} instance on connect and C{None} on disconnect.
+    @ivar deferred: on connect callbacks C{self}, on disconnect errbacks with reason if L{consumeDisconnects} is C{False}
     @type deferred: L{Deferred}
+    @ivar protocol: beanstalkd protocol instance if connected, C{None} otherwise
+    @type protocol: L{Beanstalk} or C{None}
     """
 
-    noisy = False
-    deferred = None
-    protocol = None
-
-    def __init__(self, noisy=False):
+    def __init__(self, consumeDisconnects=True, noisy=False):
+        self.factory = BeanstalkClientFactory(self)
+        self.factory.noisy = noisy
         self.noisy = noisy
-        self._fire('', None)
-
-    def _fire(self, method, protocol):
-        if self.noisy:
-            log.msg("BeanstalkClient - _fire %s %r" % (method, protocol))
-        self.protocol = protocol
-        m = getattr(self.deferred, method, None)
+        self.protocol = None
+        self.consumeDisconnects = consumeDisconnects
         self.deferred = defer.Deferred()
-        if m:
-            return m(self)
+
+    def _fire(self, arg):
+        if self.noisy:
+            log.msg("BeanstalkClient - _fire %r" % (arg))
+
+        d = self.deferred
+        self.deferred = defer.Deferred()
+
+        if isinstance(arg, Beanstalk):
+            self.protocol = arg
+            return d.callback(self)
+        else:
+            self.protocol = None
+            if not self.consumeDisconnects:
+                return d.errback(arg)
 
     def connectTCP(self, host, port):
-        f = BeanstalkClientFactory(self)
-        f.noisy = self.noisy
-        reactor.connectTCP(host, port, f)
+        """
+        Connects to given L{host} and L{port}. Disconnects before it if already connected.
+
+        @return: C{self.deferred}
+        """
+
+        self.disconnect()
+        reactor.connectTCP(host, port, self.factory)
+        return self.deferred
+
+    def retry(self):
+        self.factory.resetDelay()
         return self.deferred
 
     def disconnect(self):
+        """
+        Disconnects from server.
+
+        @return: C{self.deferred}
+        """
+
         if self.protocol:
             self.protocol.factory.stopTrying()
             self.protocol.transport.loseConnection()
