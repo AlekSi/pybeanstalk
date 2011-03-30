@@ -64,16 +64,12 @@ class BeanstalkClientTestCase(unittest.TestCase):
 
         def check_connected(client):
             self.connected_count += 1
-            self.client.deferred.addCallbacks(self.fail, check_disconnected)
-
             self.failUnlessEqual(self.client, client)
             self.failUnless(self.client.protocol)
             return self.client.protocol.put("tube", 1).addCallbacks(lambda res: self.failUnlessEqual('ok', res['state']), self.fail)
 
         def check_disconnected(reason):
             self.disconnected_count += 1
-            self.client.deferred.addBoth(self.fail)
-
             self.failUnlessIsInstance(reason.value, ConnectionDone)
             self.failIf(self.client.protocol)
 
@@ -82,7 +78,7 @@ class BeanstalkClientTestCase(unittest.TestCase):
             self.failUnlessEqual(1, self.disconnected_count)
 
         return self.client.connectTCP(self.host, self.port).addCallbacks(check_connected, self.fail) \
-                   .addCallback(lambda _: self.client.disconnect()) \
+                   .addCallback(lambda _: self.client.disconnect()).addCallbacks(self.fail, check_disconnected) \
                    .addCallback(check_count)
 
     def test_retry_connect(self):
