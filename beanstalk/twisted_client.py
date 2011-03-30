@@ -183,20 +183,22 @@ class BeanstalkClient(object):
         self.consumeDisconnects = consumeDisconnects
         self.deferred = defer.Deferred()
 
+    def _swap_deferred(self):
+        d = self.deferred
+        self.deferred = defer.Deferred()
+        return d
+
     def _fire(self, arg):
         if self.noisy:
             log.msg("BeanstalkClient - _fire %r" % (arg))
 
-        d = self.deferred
-        self.deferred = defer.Deferred()
-
         if isinstance(arg, Beanstalk):
             self.protocol = arg
-            return d.callback(self)
+            return self._swap_deferred().callback(self)
         else:
             self.protocol = None
             if not self.consumeDisconnects:
-                return d.errback(arg)
+                return self._swap_deferred().errback(arg)
 
     def connectTCP(self, host, port):
         """
