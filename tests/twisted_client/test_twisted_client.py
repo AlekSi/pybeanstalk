@@ -68,9 +68,10 @@ class BeanstalkClientTestCase(unittest.TestCase):
             self.failUnless(self.client.protocol)
             return self.client.protocol.put("tube", 1).addCallbacks(lambda res: self.failUnlessEqual('ok', res['state']), self.fail)
 
-        def check_disconnected(reason):
+        def check_disconnected(failure):
             self.disconnected_count += 1
-            self.failUnlessIsInstance(reason.value, ConnectionDone)
+            client, reason = failure.value
+            self.failUnlessIsInstance(reason, ConnectionDone)
             self.failIf(self.client.protocol)
 
         def check_count(_):
@@ -93,11 +94,12 @@ class BeanstalkClientTestCase(unittest.TestCase):
             self.failUnless(self.client.protocol)
             return self.client.protocol.put("tube", 1).addCallbacks(lambda res: self.failUnlessEqual('ok', res['state']), self.fail)
 
-        def check_disconnected(reason):
+        def check_disconnected(failure):
             self.disconnected_count += 1
             self.client.deferred.addCallbacks(check_connected, self.fail)
 
-            self.failUnlessIsInstance(reason.value, (ConnectionDone, ConnectionRefusedError))
+            client, reason = failure.value
+            self.failUnlessIsInstance(reason, (ConnectionDone, ConnectionRefusedError))
             self.failIf(self.client.protocol)
 
         def check_count(_):
@@ -121,11 +123,12 @@ class BeanstalkClientTestCase(unittest.TestCase):
             self.failUnless(self.client.protocol)
             return self.client.protocol.put("tube", 1).addCallbacks(lambda res: self.failUnlessEqual('ok', res['state']), self.fail)
 
-        def check_disconnected(reason):
+        def check_disconnected(failure):
             self.disconnected_count += 1
             self.client.deferred.addCallbacks(check_connected, self.fail)
 
-            self.failUnlessIsInstance(reason.value, ConnectionDone)
+            client, reason = failure.value
+            self.failUnlessIsInstance(reason, ConnectionDone)
             self.failIf(self.client.protocol)
 
         def check_count(_):

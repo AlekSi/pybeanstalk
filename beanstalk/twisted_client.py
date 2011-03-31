@@ -170,10 +170,12 @@ class BeanstalkClientFactory(protocol.ReconnectingClientFactory):
 class BeanstalkClient(object):
     """
     @ivar deferred: on connect callbacks C{self},
-                    on disconnect errbacks with reason if L{consumeDisconnects} is C{False}
+                    on disconnect errbacks (C{self}, reason) if L{consumeDisconnects} is C{False}
     @type deferred: L{Deferred}
     @ivar protocol: beanstalkd protocol instance if connected, C{None} otherwise
     @type protocol: L{Beanstalk} or C{None}
+    @ivar factory: factory, may be used to set L{protocol.ReconnectingClientFactory} parameters: maxDelay, factor, etc.
+    @type factory: L{BeanstalkClientFactory}
     """
 
     def __init__(self, consumeDisconnects=True, noisy=False):
@@ -199,7 +201,7 @@ class BeanstalkClient(object):
         else:
             self.protocol = None
             if not self.consumeDisconnects:
-                return self._swap_deferred().errback(arg)
+                return self._swap_deferred().errback((self, arg.value))
 
     def connectTCP(self, host, port):
         """
