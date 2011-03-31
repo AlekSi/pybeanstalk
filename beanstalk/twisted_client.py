@@ -163,13 +163,14 @@ class BeanstalkClientFactory(protocol.ReconnectingClientFactory):
     def _fire_later(self, arg):
         if self._client:
             if self.noisy:
-                log.msg("BeanstalkClientFactory - _fire_later %r" % (arg))
+                log.msg("BeanstalkClientFactory - _fire_later %r" % arg)
             reactor.callLater(0, self._client._fire, arg)
 
 
 class BeanstalkClient(object):
     """
-    @ivar deferred: on connect callbacks C{self}, on disconnect errbacks with reason if L{consumeDisconnects} is C{False}
+    @ivar deferred: on connect callbacks C{self},
+                    on disconnect errbacks with reason if L{consumeDisconnects} is C{False}
     @type deferred: L{Deferred}
     @ivar protocol: beanstalkd protocol instance if connected, C{None} otherwise
     @type protocol: L{Beanstalk} or C{None}
@@ -207,22 +208,31 @@ class BeanstalkClient(object):
         @return: C{self.deferred}
         """
 
-        self.disconnect()
+        assert not self.protocol, "BeanstalkClient.connectTCP(%r, %d) called while already connected (%r)" % (host, port, self.protocol)
         reactor.connectTCP(host, port, self.factory)
         return self.deferred
 
     def retry(self):
+        """
+        Resets reconnect delay.
+
+        @return: C{None}
+        """
+
         self.factory.resetDelay()
-        return self.deferred
+        if self.factory.connector and not self.protocol:
+            self.factory.stopTrying()
+            self.factory.retry()
 
     def disconnect(self):
         """
-        Disconnects from server.
+        Disconnects from server and stops attempts to reconnect.
 
         @return: C{self.deferred}
         """
 
+        self.factory.resetDelay()
+        self.factory.stopTrying()
         if self.protocol:
-            self.protocol.factory.stopTrying()
             self.protocol.transport.loseConnection()
         return self.deferred

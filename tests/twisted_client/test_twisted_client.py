@@ -136,32 +136,3 @@ class BeanstalkClientTestCase(unittest.TestCase):
                    .addCallback(lambda _: spawner.terminate_all()).addCallback(lambda _: self.client.deferred) \
                    .addCallback(lambda _: _setUp(self)).addCallback(lambda _: self.client.deferred) \
                    .addCallback(check_count)
-
-    def test_connect_when_connected(self):
-       self.connected_count = 0
-       self.disconnected_count = 0
-
-       def check_connected(client):
-           # print "connected - %r" % client
-           self.connected_count += 1
-           self.client.deferred.addCallbacks(self.fail, check_disconnected)
-
-           self.failUnlessEqual(self.client, client)
-           self.failUnless(self.client.protocol)
-           return self.client.protocol.put("tube", 1).addCallback(lambda res: self.failUnlessEqual('ok', res['state']))
-
-       def check_disconnected(reason):
-           # print "disconnected - %r" % reason
-           self.disconnected_count += 1
-           self.client.deferred.addCallbacks(check_connected, self.fail)
-
-           self.failUnlessIsInstance(reason.value, ConnectionDone)
-           self.failIf(self.client.protocol)
-
-       def check_count(_):
-           self.failUnlessEqual(2, self.connected_count)
-           self.failUnlessEqual(1, self.disconnected_count)
-
-       return self.client.connectTCP(self.host, self.port).addCallbacks(check_connected, self.fail) \
-                  .addCallback(lambda _: self.client.connectTCP(self.host, self.port)).addCallback(lambda _: self.client.deferred) \
-                  .addCallback(check_count)
