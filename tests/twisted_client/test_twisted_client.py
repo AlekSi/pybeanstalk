@@ -4,7 +4,7 @@ sys.path.append('tests')
 
 import os
 
-from twisted.internet import protocol, reactor
+from twisted.internet import protocol, reactor, defer
 from twisted.internet.task import Clock
 from twisted.internet.error import ConnectionDone, ConnectionRefusedError
 from twisted.trial import unittest
@@ -55,8 +55,11 @@ class BeanstalkClientTestCase(unittest.TestCase):
         self.client = BeanstalkClient(consumeDisconnects=False, noisy=True)
 
     def tearDown(self):
-        self.client.disconnect()
-        spawner.terminate_all()
+        if self.client.protocol:
+            d = self.client.disconnect()
+        else:
+            d = defer.fail("Not connected")
+        return d.addCallbacks(self.fail, lambda _: spawner.terminate_all())
 
     def test_connect_and_disconnect(self):
         self.connected_count = 0
@@ -88,16 +91,12 @@ class BeanstalkClientTestCase(unittest.TestCase):
 
         def check_connected(client):
             self.connected_count += 1
-            self.client.deferred.addCallbacks(self.fail, check_disconnected)
-
             self.failUnlessEqual(self.client, client)
             self.failUnless(self.client.protocol)
             return self.client.protocol.put("tube", 1).addCallbacks(lambda res: self.failUnlessEqual('ok', res['state']), self.fail)
 
         def check_disconnected(failure):
             self.disconnected_count += 1
-            self.client.deferred.addCallbacks(check_connected, self.fail)
-
             client, reason = failure.value
             self.failUnlessIsInstance(reason, (ConnectionDone, ConnectionRefusedError))
             self.failIf(self.client.protocol)
@@ -108,7 +107,7 @@ class BeanstalkClientTestCase(unittest.TestCase):
 
         spawner.terminate_all()
         return self.client.connectTCP(self.host, self.port).addCallbacks(self.fail, check_disconnected) \
-                   .addCallback(lambda _: _setUp(self)).addCallbacks(lambda _: self.client.deferred, self.fail) \
+                   .addCallback(lambda _: _setUp(self)).addCallback(lambda _: self.client.deferred).addCallbacks(check_connected, self.fail) \
                    .addCallback(check_count)
 
     def test_reconnect(self):
@@ -117,16 +116,12 @@ class BeanstalkClientTestCase(unittest.TestCase):
 
         def check_connected(client):
             self.connected_count += 1
-            self.client.deferred.addCallbacks(self.fail, check_disconnected)
-
             self.failUnlessEqual(self.client, client)
             self.failUnless(self.client.protocol)
             return self.client.protocol.put("tube", 1).addCallbacks(lambda res: self.failUnlessEqual('ok', res['state']), self.fail)
 
         def check_disconnected(failure):
             self.disconnected_count += 1
-            self.client.deferred.addCallbacks(check_connected, self.fail)
-
             client, reason = failure.value
             self.failUnlessIsInstance(reason, ConnectionDone)
             self.failIf(self.client.protocol)
@@ -136,6 +131,6 @@ class BeanstalkClientTestCase(unittest.TestCase):
             self.failUnlessEqual(1, self.disconnected_count)
 
         return self.client.connectTCP(self.host, self.port).addCallbacks(check_connected, self.fail) \
-                   .addCallback(lambda _: spawner.terminate_all()).addCallback(lambda _: self.client.deferred) \
-                   .addCallback(lambda _: _setUp(self)).addCallback(lambda _: self.client.deferred) \
+                   .addCallback(lambda _: spawner.terminate_all()).addCallback(lambda _: self.client.deferred).addCallbacks(self.fail, check_disconnected) \
+                   .addCallback(lambda _: _setUp(self)).addCallback(lambda _: self.client.deferred).addCallbacks(check_connected, self.fail) \
                    .addCallback(check_count)
