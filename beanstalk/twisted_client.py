@@ -1,6 +1,6 @@
 from twisted.protocols import basic
 from twisted.internet import reactor, defer, protocol
-from twisted.python import log, failure
+from twisted.python import log
 import protohandler
 
 # Stolen from memcached protocol
