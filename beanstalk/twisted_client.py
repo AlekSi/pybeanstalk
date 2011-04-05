@@ -145,26 +145,24 @@ class BeanstalkClientFactory(protocol.ReconnectingClientFactory):
             log.msg("BeanstalkClientFactory - buildProtocol %r" % addr)
         self.resetDelay()
         protocol_instance = protocol.ReconnectingClientFactory.buildProtocol(self, addr)
-        self._fire_later(protocol_instance)
+        if self._client:
+            # using delayed call to get attached transport
+            reactor.callLater(0, self._client._fire, protocol_instance)
         return protocol_instance
 
     def clientConnectionFailed(self, connector, reason):
         if self.noisy:
             log.msg("BeanstalkClientFactory - clientConnectionFailed: %s" % reason)
-        self._fire_later(reason)
+        if self._client:
+            self._client._fire(reason)
         return protocol.ReconnectingClientFactory.clientConnectionFailed(self, connector, reason)
 
     def clientConnectionLost(self, connector, reason):
         if self.noisy:
             log.msg("BeanstalkClientFactory - clientConnectionLost: %s" % reason)
-        self._fire_later(reason)
-        return protocol.ReconnectingClientFactory.clientConnectionLost(self, connector, reason)
-
-    def _fire_later(self, arg):
         if self._client:
-            if self.noisy:
-                log.msg("BeanstalkClientFactory - _fire_later %r" % arg)
-            reactor.callLater(0, self._client._fire, arg)
+            self._client._fire(reason)
+        return protocol.ReconnectingClientFactory.clientConnectionLost(self, connector, reason)
 
 
 class BeanstalkClient(object):
