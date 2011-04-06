@@ -172,6 +172,12 @@ class BeanstalkClient(object):
     @type protocol: L{Beanstalk} or C{None}
     @ivar factory: factory, may be used to set L{protocol.ReconnectingClientFactory} parameters: maxDelay, factor, etc.
     @type factory: L{BeanstalkClientFactory}
+    @ivar host: beanstalkd host
+    @ivar port: beanstalkd port
+    @ivar used_tube: used beanstalkd tube
+    @type used_tube: C{str}
+    @ivar watched_tubes: watched beanstalkd tubes
+    @type watched_tubes: C{set} of C{str}
     """
 
     def __init__(self, consumeDisconnects=True, restoreState=True, noisy=False):
@@ -181,6 +187,8 @@ class BeanstalkClient(object):
         self.protocol = None
         self.consumeDisconnects = consumeDisconnects
         self.restoreState = restoreState
+        self.host = None
+        self.port = None
         self.deferred = defer.Deferred()
         self._reset_state()
 
@@ -232,7 +240,9 @@ class BeanstalkClient(object):
         @return: C{self.deferred}
         """
 
-        assert not self.protocol, "BeanstalkClient.connectTCP(%r, %d) called while already connected (%r)" % (host, port, self.protocol)
+        assert not self.protocol, "BeanstalkClient.connectTCP(%r, %d) called while already connected to %r:%r" % (host, port, self.host, self.port)
+        self.host = host
+        self.port = port
         reactor.connectTCP(host, port, self.factory)
         return self.deferred
 

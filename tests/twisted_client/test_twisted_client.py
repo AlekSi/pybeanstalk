@@ -61,6 +61,13 @@ class BeanstalkClientTestCase(unittest.TestCase):
             d = defer.fail("Not connected")
         return d.addCallbacks(self.fail, lambda _: spawner.terminate_all())
 
+    def test_store_host_and_port(self):
+        def check(client):
+            self.failUnlessEqual(self.host, client.host)
+            self.failUnlessEqual(self.port, client.port)
+
+        return self.client.connectTCP(self.host, self.port).addCallback(check)
+
     def test_connect_and_disconnect(self):
         self.connected_count = 0
         self.disconnected_count = 0
