@@ -59,6 +59,9 @@ class Command(object):
         self._deferred.errback(error)
 
 
+protocol_commands = [name.partition('_')[2] for name in dir(protohandler) if name.startswith('process_')]
+
+
 class Beanstalk(basic.LineReceiver):
     def __init__(self):
         self._current = deque()
@@ -114,18 +117,13 @@ class Beanstalk(basic.LineReceiver):
         else:
             self._current.appendleft(pending)
 
-for name in dir(protohandler):
-    if not name.startswith('process_'):
-        continue
-    cmd = name.partition('_')[2]
-
+for command in protocol_commands:
     def wrapper(cmd):
         def caller(self, *args, **kw):
-            return self._cmd(cmd,
-                *getattr(protohandler, 'process_%s' % cmd)(*args, **kw))
+            return self._cmd(cmd, *getattr(protohandler, 'process_%s' % cmd)(*args, **kw))
         return caller
 
-    setattr(Beanstalk, cmd, wrapper(cmd))
+    setattr(Beanstalk, command, wrapper(command))
 
 
 class BeanstalkClientFactory(protocol.ReconnectingClientFactory):
@@ -176,18 +174,44 @@ class BeanstalkClient(object):
     @type factory: L{BeanstalkClientFactory}
     """
 
-    def __init__(self, consumeDisconnects=True, noisy=False):
+    def __init__(self, consumeDisconnects=True, restoreState=True, noisy=False):
         self.factory = BeanstalkClientFactory(self)
         self.factory.noisy = noisy
         self.noisy = noisy
         self.protocol = None
         self.consumeDisconnects = consumeDisconnects
+        self.restoreState = restoreState
         self.deferred = defer.Deferred()
+        self._reset_state()
 
     def _swap_deferred(self):
         d = self.deferred
         self.deferred = defer.Deferred()
+        if self.restoreState:
+            self.deferred.addCallback(lambda _: self._restore_state())
         return d
+
+    def _reset_state(self):
+        self.used_tube = "default"
+        self.watched_tubes = set(["default"])
+
+    def _restore_state(self):
+        def use():
+            if self.used_tube == "default":
+                return defer.succeed(None)
+            else:
+                return self.protocol.use(self.used_tube)
+
+        def watch(_):
+            d = defer.succeed(None)
+            for tube in self.watched_tubes:
+                d.addCallback(lambda _: self.protocol.watch(tube))
+            if "default" not in self.watched_tubes:
+                d.addCallback(lambda _: self.protocol.ignore("default"))
+            return d
+
+        assert self.protocol
+        return use().addCallback(watch).addCallback(lambda _: self)
 
     def _fire(self, arg):
         if self.noisy:
@@ -235,4 +259,20 @@ class BeanstalkClient(object):
         self.factory.stopTrying()
         if self.protocol:
             self.protocol.transport.loseConnection()
+        self._reset_state()
         return self.deferred
+
+for command in protocol_commands:
+    def wrapper(cmd):
+        def caller(self, *args, **kw):
+            if cmd == "use":
+                self.used_tube = args[0]
+            elif cmd == "watch":
+                self.watched_tubes |= frozenset([args[0]])
+            elif cmd == "ignore":
+                self.watched_tubes -= frozenset([args[0]])
+
+            return getattr(self.protocol, cmd)(*args, **kw)
+        return caller
+
+    setattr(BeanstalkClient, command, wrapper(command))
