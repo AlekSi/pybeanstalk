@@ -1,7 +1,8 @@
 from twisted.protocols import basic
-from twisted.internet import reactor, defer, protocol
+from twisted.internet import reactor, defer, protocol, error
 from twisted.python import log
 import protohandler
+from waiting_deferred import WaitingDeferred
 
 # Stolen from memcached protocol
 try:
@@ -194,9 +195,12 @@ class BeanstalkClient(object):
         self.host = None
         self.port = None
         self.deferred = defer.Deferred()
-        self._reset_state()
 
     def _swap_deferred(self):
+        """
+        Creates new C{self.deferred} (adding L{_reset_state} on it if needed), returns old one.
+        """
+
         d = self.deferred
         self.deferred = defer.Deferred()
         if self.restoreState:
@@ -206,8 +210,13 @@ class BeanstalkClient(object):
     def _reset_state(self):
         self.used_tube = "default"
         self.watched_tubes = set(["default"])
+        self._waiter = WaitingDeferred()
 
     def _restore_state(self):
+        """
+        Restores protocol state on connect: sends USE, WATCH, IGNORE and pending commands.
+        """
+
         def use():
             if self.used_tube == "default":
                 return defer.succeed(None)
@@ -222,10 +231,19 @@ class BeanstalkClient(object):
                 d.addCallback(lambda _: self.protocol.ignore("default"))
             return d
 
+        def pending(_):
+            w, self._waiter = self._waiter, WaitingDeferred()
+            w.callback(self)
+            return self
+
         assert self.protocol
-        return use().addCallback(watch).addCallback(lambda _: self)
+        return use().addCallback(watch).addCallback(pending)
 
     def _fire(self, arg):
+        """
+        Called by L{BeanstalkClientFactory} on connect/disconnect. Callbacks/errbacks C{self.deferred}
+        """
+
         if self.noisy:
             log.msg("BeanstalkClient - _fire %r" % (arg))
 
@@ -239,7 +257,7 @@ class BeanstalkClient(object):
 
     def connectTCP(self, host, port):
         """
-        Connects to given L{host} and L{port}. Disconnects before it if already connected.
+        Connects to given L{host} and L{port}.
 
         @return: C{self.deferred}
         """
@@ -247,6 +265,7 @@ class BeanstalkClient(object):
         assert not self.protocol, "BeanstalkClient.connectTCP(%r, %d) called while already connected to %r:%r" % (host, port, self.host, self.port)
         self.host = host
         self.port = port
+        self._reset_state()
         reactor.connectTCP(host, port, self.factory)
         return self.deferred
 
@@ -279,14 +298,31 @@ class BeanstalkClient(object):
 for command in protocol_commands:
     def wrapper(cmd):
         def caller(self, *args, **kw):
-            if cmd == "use":
-                self.used_tube = args[0]
-            elif cmd == "watch":
-                self.watched_tubes |= frozenset([args[0]])
-            elif cmd == "ignore":
-                self.watched_tubes -= frozenset([args[0]])
+            def execute(client):
+                def store_tubes(res):
+                    if cmd == "use":
+                        self.used_tube = args[0]
+                    elif cmd == "watch":
+                        self.watched_tubes |= frozenset([args[0]])
+                    elif cmd == "ignore":
+                        self.watched_tubes -= frozenset([args[0]])
 
-            return getattr(self.protocol, cmd)(*args, **kw)
+                    return res
+
+                return getattr(client.protocol, cmd)(*args, **kw).addCallback(store_tubes)
+
+            def execute_on_connect(fail=None):
+                if fail:
+                    fail.trap('twisted.internet.error.ConnectionClosed')
+                return self._waiter.push().addCallback(execute)
+
+            if self.protocol:
+                return execute(self).addErrback(execute_on_connect)
+            elif self.factory.continueTrying:
+                return execute_on_connect()
+            else:
+                return defer.fail(error.NotConnectingError("Can't send command - not connected and not even trying"))
+
         return caller
 
     setattr(BeanstalkClient, command, wrapper(command))

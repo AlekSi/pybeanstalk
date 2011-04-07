@@ -148,33 +148,102 @@ class BeanstalkClientTestCase(unittest.TestCase):
                    .addCallback(lambda _: _setUp(self)).addCallback(lambda _: self.client.deferred).addCallbacks(check_connected, self.fail) \
                    .addCallback(check_count)
 
-    def test_restore_state(self):
+    def test_restore_state1(self):
+        self.callbacked = False
+
         def change_state(_):
             return self.client.use("used") \
                     .addCallback(lambda _: self.client.watch("watched")) \
                     .addCallback(lambda _: self.client.ignore("default"))
 
         def restart_beanstalkd(_):
+            def put(_):
+                def mark(_):
+                    self.callbacked = True
+
+                self.client.put("JOB").addCallback(mark)
+
+            def start(_):
+                _setUp(self)
+                return self.client.deferred
+
             spawner.terminate_all()
-            return self.client.deferred.addErrback(lambda _: _setUp(self)).addCallback(lambda _: self.client.deferred)
+            return self.client.deferred.addCallbacks(self.fail, put).addCallback(start)  # put job after we knew about disconnect
 
         def check(_):
+            def check_job(job):
+                self.failUnless(self.callbacked)
+                self.failUnlessEqual("JOB", job['data'])
+                return self.client.stats_job(job['jid']).addCallback(lambda stats: self.failUnlessEqual("used", stats['data']['tube']))
+
             return self.client.list_tube_used().addCallback(lambda res: self.failUnlessEqual("used", res['tube'])) \
-                    .addCallback(lambda _: self.client.list_tubes_watched()).addCallback(lambda res: self.failUnlessEqual(["watched"], res['data']))
+                    .addCallback(lambda _: self.client.list_tubes_watched()).addCallback(lambda res: self.failUnlessEqual(["watched"], res['data'])) \
+                    .addCallback(lambda _: self.client.peek_ready()).addCallback(check_job)
+
+        return self.client.connectTCP(self.host, self.port).addCallback(change_state).addCallback(restart_beanstalkd).addCallback(check)
+
+    def test_restore_state2(self):
+        self.callbacked = False
+
+        def change_state(_):
+            return self.client.use("used") \
+                    .addCallback(lambda _: self.client.watch("watched")) \
+                    .addCallback(lambda _: self.client.ignore("default"))
+
+        def restart_beanstalkd(_):
+            def put():
+                def mark(_):
+                    self.callbacked = True
+
+                self.client.put("JOB").addCallback(mark)
+                return self.client.deferred
+
+            def start(_):
+                _setUp(self)
+                return self.client.deferred
+
+            spawner.terminate_all()
+            return put().addCallbacks(self.fail, start)  # put job before we knew about disconnect
+
+        def check(_):
+            def check_job(job):
+                self.failUnless(self.callbacked)
+                self.failUnlessEqual("JOB", job['data'])
+                return self.client.stats_job(job['jid']).addCallback(lambda stats: self.failUnlessEqual("used", stats['data']['tube']))
+
+            return self.client.list_tube_used().addCallback(lambda res: self.failUnlessEqual("used", res['tube'])) \
+                    .addCallback(lambda _: self.client.list_tubes_watched()).addCallback(lambda res: self.failUnlessEqual(["watched"], res['data'])) \
+                    .addCallback(lambda _: self.client.peek_ready()).addCallback(check_job)
 
         return self.client.connectTCP(self.host, self.port).addCallback(change_state).addCallback(restart_beanstalkd).addCallback(check)
 
     def test_reset_state(self):
+        self.callbacked = False
+
         def change_state(_):
             return self.client.use("used") \
                     .addCallback(lambda _: self.client.watch("watched")) \
                     .addCallback(lambda _: self.client.ignore("default"))
 
         def reconnect(_):
-            return self.client.disconnect().addErrback(lambda _: self.client.connectTCP(self.host, self.port))
+            def put(_):
+                def mark(_):
+                    self.callbacked = True
+
+                self.client.put("JOB").addCallbacks(mark, lambda fail: fail.trap('twisted.internet.error.NotConnectingError'))
+
+            def connect(_):
+                return self.client.connectTCP(self.host, self.port)
+
+            return self.client.disconnect().addCallbacks(self.fail, put).addCallback(connect)
 
         def check(_):
+            def check_error(fail):
+                fail.trap('errors.NotFound')
+                self.failIf(self.callbacked)
+
             return self.client.list_tube_used().addCallback(lambda res: self.failUnlessEqual("default", res['tube'])) \
-                    .addCallback(lambda _: self.client.list_tubes_watched()).addCallback(lambda res: self.failUnlessEqual(["default"], res['data']))
+                    .addCallback(lambda _: self.client.list_tubes_watched()).addCallback(lambda res: self.failUnlessEqual(["default"], res['data'])) \
+                    .addCallback(lambda _: self.client.peek_ready()).addCallbacks(self.fail, check_error)
 
         return self.client.connectTCP(self.host, self.port).addCallback(change_state).addCallback(reconnect).addCallback(check)
