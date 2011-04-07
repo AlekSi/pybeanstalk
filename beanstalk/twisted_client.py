@@ -190,7 +190,8 @@ class BeanstalkClient(object):
         self.restoreState = restoreState
         self.host = None
         self.port = None
-        self.deferred = defer.Deferred()
+        self.deferred = None
+        self._swap_deferred()
 
     def _msg(self, s):
         if self.noisy:
@@ -304,10 +305,13 @@ for command in protocol_commands:
             def execute(client):
                 def store_tubes(res):
                     if cmd == "use":
+                        self._msg("BeanstalkClient - store_tubes: USE %s" % args[0])
                         self.used_tube = args[0]
                     elif cmd == "watch":
+                        self._msg("BeanstalkClient - store_tubes: WATCH %s" % args[0])
                         self.watched_tubes |= frozenset([args[0]])
                     elif cmd == "ignore":
+                        self._msg("BeanstalkClient - store_tubes: IGNORE %s" % args[0])
                         self.watched_tubes -= frozenset([args[0]])
 
                     return res
