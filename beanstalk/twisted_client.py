@@ -154,15 +154,11 @@ class BeanstalkClientFactory(protocol.ReconnectingClientFactory):
         return protocol_instance
 
     def clientConnectionFailed(self, connector, reason):
-        if self.noisy:
-            log.msg("BeanstalkClientFactory - clientConnectionFailed: %s" % reason)
         if self._client:
             self._client._fire(reason)
         return protocol.ReconnectingClientFactory.clientConnectionFailed(self, connector, reason)
 
     def clientConnectionLost(self, connector, reason):
-        if self.noisy:
-            log.msg("BeanstalkClientFactory - clientConnectionLost: %s" % reason)
         if self._client:
             self._client._fire(reason)
         return protocol.ReconnectingClientFactory.clientConnectionLost(self, connector, reason)
@@ -196,6 +192,10 @@ class BeanstalkClient(object):
         self.port = None
         self.deferred = defer.Deferred()
 
+    def _msg(self, s):
+        if self.noisy:
+            log.msg(s)
+
     def _swap_deferred(self):
         """
         Creates new C{self.deferred} (adding L{_reset_state} on it if needed), returns old one.
@@ -221,18 +221,22 @@ class BeanstalkClient(object):
             if self.used_tube == "default":
                 return defer.succeed(None)
             else:
+                self._msg("BeanstalkClient - _restore_state: USE %s" % self.used_tube)
                 return self.protocol.use(self.used_tube)
 
         def watch(_):
             d = defer.succeed(None)
-            for tube in self.watched_tubes:
+            for tube in self.watched_tubes - frozenset(["default"]):
+                self._msg("BeanstalkClient - _restore_state: WATCH %s" % tube)
                 d.addCallback(lambda _: self.protocol.watch(tube))
             if "default" not in self.watched_tubes:
+                self._msg("BeanstalkClient - _restore_state: IGNORE default")
                 d.addCallback(lambda _: self.protocol.ignore("default"))
             return d
 
         def pending(_):
             w, self._waiter = self._waiter, WaitingDeferred()
+            self._msg("BeanstalkClient - _restore_state: %d pending commands" % len(w.queue))
             w.callback(self)
             return self
 
@@ -244,8 +248,7 @@ class BeanstalkClient(object):
         Called by L{BeanstalkClientFactory} on connect/disconnect. Callbacks/errbacks C{self.deferred}
         """
 
-        if self.noisy:
-            log.msg("BeanstalkClient - _fire %r" % (arg))
+        self._msg("BeanstalkClient - _fire %r" % (arg))
 
         if isinstance(arg, Beanstalk):
             self.protocol = arg
