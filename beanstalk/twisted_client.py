@@ -321,7 +321,7 @@ for command in protocol_commands:
             def execute_on_connect(fail=None):
                 if fail:
                     fail.trap('twisted.internet.error.ConnectionClosed')
-                return self._waiter.push().addCallback(execute)
+                return self._waiter.push().addCallback(execute).addErrback(execute_on_connect)
 
             if self.protocol:
                 return execute(self).addErrback(execute_on_connect)
