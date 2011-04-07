@@ -31,10 +31,16 @@ class BeanstalkTestCase(unittest.TestCase):
     def test_simplest(self):
         def check(proto):
             self.failUnless(proto)
-            return proto.put("tube", 1).addCallback(lambda res: self.failUnlessEqual('ok', res['state']))
+            return proto.put("JOB").addCallback(lambda res: self.failUnlessEqual('ok', res['state']))
 
         return protocol.ClientCreator(reactor, Beanstalk).connectTCP(self.host, self.port).addCallback(check)
 
+    def test_errback_on_disconnect(self):
+        def check(proto):
+            spawner.terminate_all()
+            return proto.put("JOB").addCallbacks(self.fail, lambda fail: fail.trap('twisted.internet.error.ConnectionClosed'))
+
+        return protocol.ClientCreator(reactor, Beanstalk).connectTCP(self.host, self.port).addCallback(check)
 
 class BeanstalkClientFactoryTestCase(unittest.TestCase):
     def setUp(self):
