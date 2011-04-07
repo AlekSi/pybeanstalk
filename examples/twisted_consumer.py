@@ -12,33 +12,19 @@ import beanstalk
 from twisted.python import log
 log.startLogging(sys.stdout)
 
-def executor(bs, jobdata):
-    log.msg("Running job %s" % `jobdata`)
-    bs.touch(jobdata['jid'])
-    bs.delete(jobdata['jid'])
-
-def error_handler(e):
-    print "Got an error", e
-
-def executionGenerator(bs):
-    while True:
-        log.msg("Waiting for a job...")
-        yield bs.reserve().addCallback(lambda v: executor(bs, v)).addErrback(error_handler)
+def prepare(client):
+    client.watch("demo")
+    client.ignore("default")
+    return client
 
 def worker(client):
-    client.deferred.addCallback(worker)
+    def execute(job):
+        log.msg("Got job: %r" % job)
+        client.touch(job['jid'])
+        return client.delete(job['jid'])
 
-    bs = client.protocol
-    if not bs:
-        return
-
-    bs.watch("myqueue")
-    bs.ignore("default")
-
-    coop = task.Cooperator()
-    coop.coiterate(executionGenerator(bs))
+    return client.reserve().addCallback(execute).addCallback(lambda _: reactor.callLater(0, worker, client))
 
 client = beanstalk.twisted_client.BeanstalkClient(noisy=True)
-d = client.connectTCP(sys.argv[1], 11300)
-d.addCallback(worker)
+client.connectTCP(sys.argv[1], 11300).addCallback(prepare).addCallback(worker)
 reactor.run()

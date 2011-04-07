@@ -12,14 +12,18 @@ import beanstalk
 from twisted.python import log
 log.startLogging(sys.stdout)
 
+i = 0
+
 def worker(client):
-    bs = client.protocol
-    bs.use("myqueue")
-    bs.put('Look!  A job!', 8192, 0, 300) \
-      .addCallback(lambda x: sys.stdout.write("Queued job: %s\n" % `x`)) \
-      .addCallback(lambda _: reactor.stop())
+    global i
+    i += 1
+    body = 'Job %d' % i
+    client.put(body).addCallback(lambda res: log.msg("%s: %s" % (body, res)))
+    if not client.protocol:
+        log.msg("%s will be put on connect" % body)
 
 client = beanstalk.twisted_client.BeanstalkClient(noisy=True)
-d = client.connectTCP(sys.argv[1], 11300)
-d.addCallback(worker)
+client.connectTCP(sys.argv[1], 11300)
+client.use("demo")
+task.LoopingCall(worker, client).start(2, now=False)
 reactor.run()
